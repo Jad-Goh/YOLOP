@@ -503,7 +503,7 @@ class C3CBAM(C3):
 
 class CABottleneck(nn.Module):
     # Standard bottleneck
-    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5,ratio=32):  # ch_in, ch_out, shortcut, groups, expansion
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5, ratio=32):  # ch_in, ch_out, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
@@ -523,3 +523,179 @@ class C3CA(C3):
         super().__init__(c1, c2, n, shortcut, g, e)
         c_ = int(c2 * e)  # hidden channels
         self.m = nn.Sequential(*(CABottleneck(c_, c_,shortcut) for _ in range(n)))
+
+
+class ELANBlock(nn.Module):
+    """
+    ELAN BLock of YOLOv7's backbone
+    """
+    def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
+        super(ELANBlock, self).__init__()
+        inter_dim = int(in_dim * expand_ratio)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = Conv(in_dim, inter_dim, k=1)
+        self.cv3 = nn.Sequential(
+            Conv(inter_dim, inter_dim, k=3, p=1),
+            Conv(inter_dim, inter_dim, k=3, p=1)
+        )
+        self.cv4 = nn.Sequential(
+            Conv(inter_dim, inter_dim, k=3, p=1),
+            Conv(inter_dim, inter_dim, k=3, p=1)
+        )
+
+        assert inter_dim*4 == out_dim
+
+        self.out = Conv(inter_dim*4, out_dim, k=1)
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C, H, W]
+        Output:
+            out: [B, 2C, H, W]
+        """
+        x1 = self.cv1(x)
+        x2 = self.cv2(x)
+        x3 = self.cv3(x2)
+        x4 = self.cv4(x3)
+
+        # [B, C, H, W] -> [B, 2C, H, W]
+        out = self.out(torch.cat([x1, x2, x3, x4], dim=1))
+
+        return out
+
+
+class ELANBlock2(nn.Module):
+    """
+    ELAN BLock of YOLOv7's head
+    """
+    def __init__(self, in_dim, out_dim, expand_ratio=0.5):
+        super(ELANBlock2, self).__init__()
+        inter_dim = int(in_dim * expand_ratio)
+        inter_dim2 = int(inter_dim * expand_ratio)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = Conv(in_dim, inter_dim, k=1)
+        self.cv3 = Conv(inter_dim, inter_dim2, k=3, p=1)
+        self.cv4 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+        self.cv5 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+        self.cv6 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+
+        self.out = Conv(inter_dim*2+inter_dim2*4, out_dim, k=1)
+
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C_in, H, W]
+        Output:
+            out: [B, C_out, H, W]
+        """
+        x1 = self.cv1(x)
+        x2 = self.cv2(x)
+        x3 = self.cv3(x2)
+        x4 = self.cv4(x3)
+        x5 = self.cv5(x4)
+        x6 = self.cv6(x5)
+
+        # [B, C_in, H, W] -> [B, C_out, H, W]
+        out = self.out(torch.cat([x1, x2, x3, x4, x5, x6], dim=1))
+
+        return out
+
+
+class DownSample(nn.Module):
+    """
+    DownSample BLock of YOLOv7's backbone
+    """
+    def __init__(self, in_dim):
+        super().__init__()
+        inter_dim = in_dim // 2
+        self.mp = nn.MaxPool2d((2, 2), 2)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = nn.Sequential(
+            Conv(in_dim, inter_dim, k=1),
+            Conv(inter_dim, inter_dim, k=3, p=1, s=2)
+        )
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C, H, W]
+        Output:
+            out: [B, C, H//2, W//2]
+        """
+        # [B, C, H, W] -> [B, C//2, H//2, W//2]
+        x1 = self.cv1(self.mp(x))
+        x2 = self.cv2(x)
+
+        # [B, C, H//2, W//2]
+        out = torch.cat([x1, x2], dim=1)
+
+        return out
+
+
+class DownSample2(nn.Module):
+    def __init__(self, in_dim):
+        super().__init__()
+        inter_dim = in_dim
+        self.mp = nn.MaxPool2d((2, 2), 2)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = nn.Sequential(
+            Conv(in_dim, inter_dim, k=1),
+            Conv(inter_dim, inter_dim, k=3, p=1, s=2)
+        )
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C, H, W]
+        Output:
+            out: [B, 2C, H//2, W//2]
+        """
+        # [B, C, H, W] -> [B, C//2, H//2, W//2]
+        x1 = self.cv1(self.mp(x))
+        x2 = self.cv2(x)
+
+        # [B, C, H//2, W//2]
+        out = torch.cat([x1, x2], dim=1)
+
+        return out
+
+
+class SPPCSPC(nn.Module):
+    # CSP https://github.com/WongKinYiu/CrossStagePartialNetworks
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=(5, 9, 13)):
+        super(SPPCSPC, self).__init__()
+        c_ = int(2 * c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c1, c_, 1, 1)
+        self.cv3 = Conv(c_, c_, 3, 1)
+        self.cv4 = Conv(c_, c_, 1, 1)
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
+        self.cv5 = Conv(4 * c_, c_, 1, 1)
+        self.cv6 = Conv(c_, c_, 3, 1)
+        self.cv7 = Conv(2 * c_, c2, 1, 1)
+
+    def forward(self, x):
+        x1 = self.cv4(self.cv3(self.cv1(x)))
+        y1 = self.cv6(self.cv5(torch.cat([x1] + [m(x1) for m in self.m], 1)))
+        y2 = self.cv2(x)
+        return self.cv7(torch.cat((y1, y2), dim=1))
+
+
+class TransConv(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super(TransConv, self).__init__()
+        self.conv = nn.ConvTranspose2d(c1, c2, k, s, 0, groups=g, bias=False)  # 修改为转置卷积
+        self.bn = nn.BatchNorm2d(c2)
+        try:
+            self.act = Hardswish() if act else nn.Identity()
+        except:
+            self.act = nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def fuseforward(self, x):
+        return self.act(self.conv(x))

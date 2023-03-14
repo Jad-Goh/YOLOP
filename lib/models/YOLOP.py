@@ -19,6 +19,9 @@ from lib.core.evaluate import SegmentationMetric
 from lib.utils.utils import time_synchronized
 
 """
+  - [6,7,  11,8,  8,15]  # P3/8
+  - [17,14,  14,28,  31,24]  # P4/16
+  - [51,38,  93,65,  159,127]  # P5/32
 MCnet_SPP = [
 [ -1, Focus, [3, 32, 3]],
 [ -1, Conv, [32, 64, 3, 2]],

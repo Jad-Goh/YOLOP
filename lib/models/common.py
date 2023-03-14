@@ -775,6 +775,7 @@ class TransConv(nn.Module):
         super(TransConv, self).__init__()
         self.conv = nn.ConvTranspose2d(c1, c2, k, s, 0, groups=g, bias=False)  # 修改为转置卷积
         self.bn = nn.BatchNorm2d(c2)
+
         try:
             self.act = Hardswish() if act else nn.Identity()
         except:
@@ -782,6 +783,31 @@ class TransConv(nn.Module):
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
+
+    def fuseforward(self, x):
+        return self.act(self.conv(x))
+
+
+class TransConv_CSP(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=2, s=2):  # ch_in, ch_out, kernel, stride, padding, groups
+        super(TransConv_CSP, self).__init__()
+        inter_dim = c1 // 4
+        self.cv1 = Conv(c1, inter_dim, k=1)
+        self.tcv = nn.ConvTranspose2d(inter_dim, inter_dim, 2, 2)  # 修改为转置卷积
+        self.bn = nn.BatchNorm2d(inter_dim)
+        self.act = nn.SiLU()
+        inter_dim1 = c1 // 2
+        self.cv2 = Conv(inter_dim, inter_dim1, k=3)
+        self.cv3 = Conv(inter_dim, inter_dim1, k=1)
+
+
+    def forward(self, x):
+        y1 = self.cv1(x)
+        y2 = self.act(self.bn(self.tcv(y1)))  # 2H, 2W, C/4
+        out = torch.cat([self.cv2(y2), self.cv3(y2)], dim=1)
+
+        return out
 
     def fuseforward(self, x):
         return self.act(self.conv(x))

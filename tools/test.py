@@ -23,6 +23,7 @@ from lib.core.function import validate
 from lib.core.general import fitness
 from lib.models import get_net
 from lib.utils.utils import create_logger, select_device
+from thop import profile
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Test Multitask network')
@@ -72,6 +73,9 @@ def main():
     # device = select_device(logger, 'cpu')
 
     model = get_net(cfg)
+    input_ = torch.randn(1, 3, 640, 640)
+    macs, params = profile(model, inputs=(input_,), verbose=False)
+    print(" %.8f params(M)| %.8f FLOPs(G)" % (params / (1000 ** 2), macs / (1000 ** 3)))
     print("finish build model")
     
     # define loss function (criterion) and optimizer

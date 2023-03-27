@@ -525,12 +525,71 @@ class C3CA(C3):
         self.m = nn.Sequential(*(CABottleneck(c_, c_,shortcut) for _ in range(n)))
 
 
-class ELANBlock(nn.Module):
-    """
-    ELAN BLock of YOLOv7's backbone
-    """
+class MCB_3(nn.Module):
+
     def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
-        super(ELANBlock, self).__init__()
+        super(MCB_3, self).__init__()
+        inter_dim = int(in_dim * expand_ratio)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = Conv(in_dim, inter_dim, k=1)
+        self.cv3 = nn.Sequential(
+            Conv(inter_dim, inter_dim, k=3, p=1),
+            Conv(inter_dim, inter_dim, k=3, p=1)
+        )
+
+        self.out = Conv(inter_dim * 3, out_dim, k=1)
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C, H, W]
+        Output:
+            out: [B, 2C, H, W]
+        """
+        x1 = self.cv1(x)
+        x2 = self.cv2(x)
+        x3 = self.cv3(x2)
+
+        # [B, C, H, W] -> [B, 2C, H, W]
+        out = self.out(torch.cat([x1, x2, x3], dim=1))
+
+        return out
+
+class MCB_4a(nn.Module):
+
+    def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
+        super(MCB_4a, self).__init__()
+        inter_dim = int(in_dim * expand_ratio)
+        self.cv1 = Conv(in_dim, inter_dim, k=1)
+        self.cv2 = Conv(in_dim, inter_dim, k=1)
+        self.cv3 = Conv(inter_dim, inter_dim, k=3, p=1)
+        self.cv4 = Conv(inter_dim, inter_dim, k=3, p=1)
+
+        # assert inter_dim * 4 == out_dim
+
+        self.out = Conv(inter_dim * 4, out_dim, k=1)
+
+    def forward(self, x):
+        """
+        Input:
+            x: [B, C, H, W]
+        Output:
+            out: [B, 2C, H, W]
+        """
+        x1 = self.cv1(x)
+        x2 = self.cv2(x)
+        x3 = self.cv3(x2)
+        x4 = self.cv4(x3)
+
+        # [B, C, H, W] -> [B, 2C, H, W]
+        out = self.out(torch.cat([x1, x2, x3, x4], dim=1))
+
+        return out
+
+class MCB_4b(nn.Module):
+
+    def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
+        super(MCB_4b, self).__init__()
         inter_dim = int(in_dim * expand_ratio)
         self.cv1 = Conv(in_dim, inter_dim, k=1)
         self.cv2 = Conv(in_dim, inter_dim, k=1)
@@ -543,7 +602,7 @@ class ELANBlock(nn.Module):
             Conv(inter_dim, inter_dim, k=3, p=1)
         )
 
-        assert inter_dim*4 == out_dim
+        # assert inter_dim*4 == out_dim
 
         self.out = Conv(inter_dim*4, out_dim, k=1)
 
@@ -565,128 +624,128 @@ class ELANBlock(nn.Module):
         return out
 
 
-class MCB(nn.Module):
-    """
-    ELAN BLock of YOLOv7's backbone
-    """
-    def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
-        super(MCB, self).__init__()
-        inter_dim = int(in_dim * expand_ratio)
-        # self.cv1 = Conv(in_dim, inter_dim, k=1)
-        self.part1_chnls = inter_dim
-        self.part2_chnls = in_dim - self.part1_chnls
-        self.cv2 = Conv(self.part2_chnls, inter_dim, k=1)
-        self.cv3 = nn.Sequential(
-            Conv(inter_dim, inter_dim, k=3, p=1),
-            Conv(inter_dim, inter_dim, k=3, p=1)
-        )
-        self.cv4 = nn.Sequential(
-            Conv(inter_dim, inter_dim, k=3, p=1),
-            Conv(inter_dim, inter_dim, k=3, p=1)
-        )
-
-        assert inter_dim*4 == out_dim
-
-        self.out = Conv(inter_dim*4, out_dim, k=1)
-
-    def forward(self, x):
-        """
-        Input:
-            x: [B, C, H, W]
-        Output:
-            out: [B, 2C, H, W]
-        """
-        # x1 = self.cv1(x)
-        x1 = x[:, :self.part1_chnls, :, :]
-        x2 = x[:, self.part1_chnls:, :, :]
-        x2 = self.cv2(x2)
-        x3 = self.cv3(x2)
-        x4 = self.cv4(x3)
-
-        # [B, C, H, W] -> [B, 2C, H, W]
-        out = self.out(torch.cat([x1, x2, x3, x4], dim=1))
-
-        return out
-
-
-class ELANBlock2(nn.Module):
-    """
-    ELAN BLock of YOLOv7's head
-    """
-    def __init__(self, in_dim, out_dim, expand_ratio=0.5):
-        super(ELANBlock2, self).__init__()
-        inter_dim = int(in_dim * expand_ratio)
-        inter_dim2 = int(inter_dim * expand_ratio)
-        self.cv1 = Conv(in_dim, inter_dim, k=1)
-        self.cv2 = Conv(in_dim, inter_dim, k=1)
-        self.cv3 = Conv(inter_dim, inter_dim2, k=3, p=1)
-        self.cv4 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-        self.cv5 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-        self.cv6 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-
-        self.out = Conv(inter_dim*2+inter_dim2*4, out_dim, k=1)
+# class MCB(nn.Module):
+#     """
+#     ELAN BLock of YOLOv7's backbone
+#     """
+#     def __init__(self, in_dim, out_dim, expand_ratio=0.5, depthwise=False):
+#         super(MCB, self).__init__()
+#         inter_dim = int(in_dim * expand_ratio)
+#         # self.cv1 = Conv(in_dim, inter_dim, k=1)
+#         self.part1_chnls = inter_dim
+#         self.part2_chnls = in_dim - self.part1_chnls
+#         self.cv2 = Conv(self.part2_chnls, inter_dim, k=1)
+#         self.cv3 = nn.Sequential(
+#             Conv(inter_dim, inter_dim, k=3, p=1),
+#             Conv(inter_dim, inter_dim, k=3, p=1)
+#         )
+#         self.cv4 = nn.Sequential(
+#             Conv(inter_dim, inter_dim, k=3, p=1),
+#             Conv(inter_dim, inter_dim, k=3, p=1)
+#         )
+#
+#         assert inter_dim*4 == out_dim
+#
+#         self.out = Conv(inter_dim*4, out_dim, k=1)
+#
+#     def forward(self, x):
+#         """
+#         Input:
+#             x: [B, C, H, W]
+#         Output:
+#             out: [B, 2C, H, W]
+#         """
+#         # x1 = self.cv1(x)
+#         x1 = x[:, :self.part1_chnls, :, :]
+#         x2 = x[:, self.part1_chnls:, :, :]
+#         x2 = self.cv2(x2)
+#         x3 = self.cv3(x2)
+#         x4 = self.cv4(x3)
+#
+#         # [B, C, H, W] -> [B, 2C, H, W]
+#         out = self.out(torch.cat([x1, x2, x3, x4], dim=1))
+#
+#         return out
 
 
-    def forward(self, x):
-        """
-        Input:
-            x: [B, C_in, H, W]
-        Output:
-            out: [B, C_out, H, W]
-        """
-        x1 = self.cv1(x)
-        x2 = self.cv2(x)
-        x3 = self.cv3(x2)
-        x4 = self.cv4(x3)
-        x5 = self.cv5(x4)
-        x6 = self.cv6(x5)
-
-        # [B, C_in, H, W] -> [B, C_out, H, W]
-        out = self.out(torch.cat([x1, x2, x3, x4, x5, x6], dim=1))
-
-        return out
-
-
-class MCB2(nn.Module):
-    """
-    ELAN BLock of YOLOv7's head
-    """
-    def __init__(self, in_dim, out_dim, expand_ratio=0.5):
-        super(MCB2, self).__init__()
-        inter_dim = int(in_dim * expand_ratio)
-        inter_dim2 = int(inter_dim * expand_ratio)
-        self.part1_chnls = inter_dim
-        self.part2_chnls = in_dim - self.part1_chnls
-        # self.cv1 = Conv(in_dim, inter_dim, k=1)
-        self.cv2 = Conv(self.part2_chnls, inter_dim, k=1)
-        self.cv3 = Conv(inter_dim, inter_dim2, k=3, p=1)
-        self.cv4 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-        self.cv5 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-        self.cv6 = Conv(inter_dim2, inter_dim2, k=3, p=1)
-
-        self.out = Conv(inter_dim*2+inter_dim2*4, out_dim, k=1)
-
-
-    def forward(self, x):
-        """
-        Input:
-            x: [B, C_in, H, W]
-        Output:
-            out: [B, C_out, H, W]
-        """
-        x1 = x[:, :self.part1_chnls, :, :]
-        x2 = x[:, self.part1_chnls:, :, :]
-        # x1 = self.cv1(x)
-        x2 = self.cv2(x2)
-        x3 = self.cv3(x2)
-        x4 = self.cv4(x3)
-        x5 = self.cv5(x4)
-        x6 = self.cv6(x5)
-
-        # [B, C_in, H, W] -> [B, C_out, H, W]
-        out = self.out(torch.cat([x1, x2, x3, x4, x5, x6], dim=1))
-
-        return out
+# class ELANBlock2(nn.Module):
+#     """
+#     ELAN BLock of YOLOv7's head
+#     """
+#     def __init__(self, in_dim, out_dim, expand_ratio=0.5):
+#         super(ELANBlock2, self).__init__()
+#         inter_dim = int(in_dim * expand_ratio)
+#         inter_dim2 = int(inter_dim * expand_ratio)
+#         self.cv1 = Conv(in_dim, inter_dim, k=1)
+#         self.cv2 = Conv(in_dim, inter_dim, k=1)
+#         self.cv3 = Conv(inter_dim, inter_dim2, k=3, p=1)
+#         self.cv4 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#         self.cv5 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#         self.cv6 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#
+#         self.out = Conv(inter_dim*2+inter_dim2*4, out_dim, k=1)
+#
+#
+#     def forward(self, x):
+#         """
+#         Input:
+#             x: [B, C_in, H, W]
+#         Output:
+#             out: [B, C_out, H, W]
+#         """
+#         x1 = self.cv1(x)
+#         x2 = self.cv2(x)
+#         x3 = self.cv3(x2)
+#         x4 = self.cv4(x3)
+#         x5 = self.cv5(x4)
+#         x6 = self.cv6(x5)
+#
+#         # [B, C_in, H, W] -> [B, C_out, H, W]
+#         out = self.out(torch.cat([x1, x2, x3, x4, x5, x6], dim=1))
+#
+#         return out
+#
+#
+# class MCB2(nn.Module):
+#     """
+#     ELAN BLock of YOLOv7's head
+#     """
+#     def __init__(self, in_dim, out_dim, expand_ratio=0.5):
+#         super(MCB2, self).__init__()
+#         inter_dim = int(in_dim * expand_ratio)
+#         inter_dim2 = int(inter_dim * expand_ratio)
+#         self.part1_chnls = inter_dim
+#         self.part2_chnls = in_dim - self.part1_chnls
+#         # self.cv1 = Conv(in_dim, inter_dim, k=1)
+#         self.cv2 = Conv(self.part2_chnls, inter_dim, k=1)
+#         self.cv3 = Conv(inter_dim, inter_dim2, k=3, p=1)
+#         self.cv4 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#         self.cv5 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#         self.cv6 = Conv(inter_dim2, inter_dim2, k=3, p=1)
+#
+#         self.out = Conv(inter_dim*2+inter_dim2*4, out_dim, k=1)
+#
+#
+#     def forward(self, x):
+#         """
+#         Input:
+#             x: [B, C_in, H, W]
+#         Output:
+#             out: [B, C_out, H, W]
+#         """
+#         x1 = x[:, :self.part1_chnls, :, :]
+#         x2 = x[:, self.part1_chnls:, :, :]
+#         # x1 = self.cv1(x)
+#         x2 = self.cv2(x2)
+#         x3 = self.cv3(x2)
+#         x4 = self.cv4(x3)
+#         x5 = self.cv5(x4)
+#         x6 = self.cv6(x5)
+#
+#         # [B, C_in, H, W] -> [B, C_out, H, W]
+#         out = self.out(torch.cat([x1, x2, x3, x4, x5, x6], dim=1))
+#
+#         return out
 
 
 class DownSample(nn.Module):

@@ -12,7 +12,7 @@ from lib.utils import initialize_weights
 # from lib.models.common2 import DepthSeperabelConv2d as Conv
 # from lib.models.common2 import SPP, Bottleneck, BottleneckCSP, Focus, Concat, Detect
 from lib.models.common import Conv, SPP, Bottleneck, BottleneckCSP, Focus, Concat, Detect, SharpenConv, C3, C3CBAM, \
-    ELANBlock, DownSample, ELANBlock2, DownSample2, SPPCSPC, TransConv, MCB, MCB2, TransConv_CSP, C3ECA, C3CA
+    MCB_3, MCB_4a, MCB_4b, DownSample, DownSample2, SPPCSPC, TransConv, TransConv_CSP, C3ECA, C3CA
 from torch.nn import Upsample
 from lib.utils import check_anchor_order
 from lib.core.evaluate import SegmentationMetric
@@ -617,23 +617,23 @@ YOLOPmulti = [
     [-1, Conv, [8, 2, 3, 1]]  # 42 Lane line segmentation head
 ]
 
-PRPNet_MCB4 = [
+PRPNet_C3_ECA_TransCSP = [
     [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
     [-1, Conv, [3, 32, 3, 1]],  # 0 640
     [-1, Conv, [32, 64, 3, 2]],  # 1 320
     [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
 
     [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
-    [-1, ELANBlock, [128, 256]],  # 4 160 B2
+    [-1, C3, [128, 256]],  # 4 160 B2
 
     [-1, DownSample, [256]],  # 5 80 stage3
-    [-1, ELANBlock, [256, 512]],  # 6 80 B3
+    [-1, C3, [256, 512]],  # 6 80 B3
 
     [-1, DownSample, [512]],  # 7 40 stage4
-    [-1, ELANBlock, [512, 1024]],  # 8 40 B4
+    [-1, C3, [512, 1024]],  # 8 40 B4
 
     [-1, DownSample, [1024]],  # 9 20 stage5
-    [-1, ELANBlock, [1024, 1024, 0.25]],  # 10 20
+    [-1, C3ECA, [1024, 1024]],  # 10 20
 
     # FPN
     # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
@@ -644,156 +644,21 @@ PRPNet_MCB4 = [
     [8, Conv, [1024, 256, 1, 1]],
     [[-1, -2], Concat, [1]],  # 15
 
-    [-1, ELANBlock2, [512, 256]],  # 16 N4
+    [-1, C3, [512, 256]],  # 16 N4
     [-1, Conv, [256, 128, 1, 1]],  # 17
     [-1, Upsample, [None, 2, 'nearest']],  # 18
     [6, Conv, [512, 128, 1, 1]],
     [[-1, -2], Concat, [1]],  # 20
 
-    [-1, ELANBlock2, [256, 128]],  # 21 P3
+    [-1, C3, [256, 128]],  # 21 P3
 
     [-1, DownSample2, [128]],
     [[-1, 16], Concat, [1]],
-    [-1, ELANBlock2, [512, 256]],  # 24 P4
+    [-1, C3, [512, 256]],  # 24 P4
 
     [-1, DownSample2, [256]],
     [[-1, 11], Concat, [1]],
-    [-1, ELANBlock2, [1024, 512]],  # 27 P5
-
-    [[21, 24, 27], Detect,
-     [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
-
-    [20, Conv, [256, 128, 3, 1]],  # 29
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, BottleneckCSP, [128, 64, 1, False]],
-    [-1, Conv, [64, 32, 3, 1]],
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, Conv, [32, 16, 3, 1]],
-    [-1, BottleneckCSP, [16, 8, 1, False]],
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, Conv, [8, 2, 3, 1]],  # 37 Driving area segmentation head
-
-    [20, Conv, [256, 128, 3, 1]],
-    [-1, TransConv, [128, 128, 2, 2]],
-    [-1, BottleneckCSP, [128, 64, 1, False]],
-    [-1, Conv, [64, 32, 3, 1]],
-    [-1, TransConv, [32, 32, 2, 2]],
-    [-1, Conv, [32, 16, 3, 1]],
-    [-1, BottleneckCSP, [16, 8, 1, False]],
-    [-1, TransConv, [8, 8, 2, 2]],
-    [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
-]
-
-PRPNet_MCB_G = [
-    [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
-    [-1, Conv, [3, 32, 3, 1]],  # 0 640
-    [-1, Conv, [32, 64, 3, 2]],  # 1 320
-    [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
-
-    [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
-    [-1, MCB, [128, 256]],  # 4 160 B2
-
-    [-1, DownSample, [256]],  # 5 80 stage3
-    [-1, MCB, [256, 512]],  # 6 80 B3
-
-    [-1, DownSample, [512]],  # 7 40 stage4
-    [-1, MCB, [512, 1024]],  # 8 40 B4
-
-    [-1, DownSample, [1024]],  # 9 20 stage5
-    [-1, MCB, [1024, 1024, 0.25]],  # 10 20
-
-    # FPN
-    # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
-    [-1, SPPCSPC, [1024, 512]],  # 11 N5
-    # Head
-    [-1, Conv, [512, 256, 1, 1]],  # 12
-    [-1, Upsample, [None, 2, 'nearest']],  # 13
-    [8, Conv, [1024, 256, 1, 1]],
-    [[-1, -2], Concat, [1]],  # 15
-
-    [-1, MCB2, [512, 256]],  # 16 N4
-    [-1, Conv, [256, 128, 1, 1]],  # 17
-    [-1, Upsample, [None, 2, 'nearest']],  # 18
-    [6, Conv, [512, 128, 1, 1]],
-    [[-1, -2], Concat, [1]],  # 20
-
-    [-1, MCB2, [256, 128]],  # 21 P3
-
-    [-1, DownSample2, [128]],
-    [[-1, 16], Concat, [1]],
-    [-1, MCB2, [512, 256]],  # 24 P4
-
-    [-1, DownSample2, [256]],
-    [[-1, 11], Concat, [1]],
-    [-1, MCB2, [1024, 512]],  # 27 P5
-
-    [[21, 24, 27], Detect,
-     [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],
-    # Detection head 28
-
-    [20, Conv, [256, 128, 3, 1]],  # 29
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, BottleneckCSP, [128, 64, 1, False]],
-    [-1, Conv, [64, 32, 3, 1]],
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, Conv, [32, 16, 3, 1]],
-    [-1, BottleneckCSP, [16, 8, 1, False]],
-    [-1, Upsample, [None, 2, 'nearest']],
-    [-1, Conv, [8, 2, 3, 1]],  # 37 Driving area segmentation head
-
-    [20, Conv, [256, 128, 3, 1]],
-    [-1, TransConv, [128, 128, 2, 2]],
-    [-1, BottleneckCSP, [128, 64, 1, False]],
-    [-1, Conv, [64, 32, 3, 1]],
-    [-1, TransConv, [32, 32, 2, 2]],
-    [-1, Conv, [32, 16, 3, 1]],
-    [-1, BottleneckCSP, [16, 8, 1, False]],
-    [-1, TransConv, [8, 8, 2, 2]],
-    [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
-]
-
-PRPNet_MCB4_TransCSP = [
-    [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
-    [-1, Conv, [3, 32, 3, 1]],  # 0 640
-    [-1, Conv, [32, 64, 3, 2]],  # 1 320
-    [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
-
-    [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
-    [-1, ELANBlock, [128, 256]],  # 4 160 B2
-
-    [-1, DownSample, [256]],  # 5 80 stage3
-    [-1, ELANBlock, [256, 512]],  # 6 80 B3
-
-    [-1, DownSample, [512]],  # 7 40 stage4
-    [-1, ELANBlock, [512, 1024]],  # 8 40 B4
-
-    [-1, DownSample, [1024]],  # 9 20 stage5
-    [-1, ELANBlock, [1024, 1024, 0.25]],  # 10 20
-
-    # FPN
-    # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
-    [-1, SPPCSPC, [1024, 512]],  # 11 N5
-    # Head
-    [-1, Conv, [512, 256, 1, 1]],  # 12
-    [-1, Upsample, [None, 2, 'nearest']],  # 13
-    [8, Conv, [1024, 256, 1, 1]],
-    [[-1, -2], Concat, [1]],  # 15
-
-    [-1, ELANBlock2, [512, 256]],  # 16 N4
-    [-1, Conv, [256, 128, 1, 1]],  # 17
-    [-1, Upsample, [None, 2, 'nearest']],  # 18
-    [6, Conv, [512, 128, 1, 1]],
-    [[-1, -2], Concat, [1]],  # 20
-
-    [-1, ELANBlock2, [256, 128]],  # 21 P3
-
-    [-1, DownSample2, [128]],
-    [[-1, 16], Concat, [1]],
-    [-1, ELANBlock2, [512, 256]],  # 24 P4
-
-    [-1, DownSample2, [256]],
-    [[-1, 11], Concat, [1]],
-    [-1, ELANBlock2, [1024, 512]],  # 27 P5
+    [-1, C3, [1024, 512]],  # 27 P5
 
     [[21, 24, 27], Detect,
      [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
@@ -819,20 +684,20 @@ PRPNet_MCB4_TransCSP = [
     [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
 ]
 
-PRPNet_MCB4_ECA = [
+PRPNet_MCB3_ECA_TransCSP = [
     [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
     [-1, Conv, [3, 32, 3, 1]],  # 0 640
     [-1, Conv, [32, 64, 3, 2]],  # 1 320
     [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
 
     [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
-    [-1, ELANBlock, [128, 256]],  # 4 160 B2
+    [-1, MCB_3, [128, 256]],  # 4 160 B2
 
     [-1, DownSample, [256]],  # 5 80 stage3
-    [-1, ELANBlock, [256, 512]],  # 6 80 B3
+    [-1, MCB_3, [256, 512]],  # 6 80 B3
 
     [-1, DownSample, [512]],  # 7 40 stage4
-    [-1, ELANBlock, [512, 1024]],  # 8 40 B4
+    [-1, MCB_3, [512, 1024]],  # 8 40 B4
 
     [-1, DownSample, [1024]],  # 9 20 stage5
     [-1, C3ECA, [1024, 1024]],  # 10 20
@@ -846,21 +711,222 @@ PRPNet_MCB4_ECA = [
     [8, Conv, [1024, 256, 1, 1]],
     [[-1, -2], Concat, [1]],  # 15
 
-    [-1, ELANBlock2, [512, 256]],  # 16 N4
+    [-1, MCB_3, [512, 256]],  # 16 N4
     [-1, Conv, [256, 128, 1, 1]],  # 17
     [-1, Upsample, [None, 2, 'nearest']],  # 18
     [6, Conv, [512, 128, 1, 1]],
     [[-1, -2], Concat, [1]],  # 20
 
-    [-1, ELANBlock2, [256, 128]],  # 21 P3
+    [-1, MCB_3, [256, 128]],  # 21 P3
 
     [-1, DownSample2, [128]],
     [[-1, 16], Concat, [1]],
-    [-1, ELANBlock2, [512, 256]],  # 24 P4
+    [-1, MCB_3, [512, 256]],  # 24 P4
 
     [-1, DownSample2, [256]],
     [[-1, 11], Concat, [1]],
-    [-1, ELANBlock2, [1024, 512]],  # 27 P5
+    [-1, MCB_3, [1024, 512]],  # 27 P5
+
+    [[21, 24, 27], Detect,
+     [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
+
+    [20, Conv, [256, 128, 3, 1]],  # 29
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [8, 2, 3, 1]],  # 37 Driving area segmentation head
+
+    [20, Conv, [256, 128, 3, 1]],
+    [-1, TransConv_CSP, [128, 128, 2, 2]],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, TransConv_CSP, [32, 32, 2, 2]],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, TransConv_CSP, [8, 8, 2, 2]],
+    [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
+]
+
+PRPNet_MCB4a_ECA_TransCSP = [
+    [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
+    [-1, Conv, [3, 32, 3, 1]],  # 0 640
+    [-1, Conv, [32, 64, 3, 2]],  # 1 320
+    [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
+
+    [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
+    [-1, MCB_4a, [128, 256]],  # 4 160 B2
+
+    [-1, DownSample, [256]],  # 5 80 stage3
+    [-1, MCB_4a, [256, 512]],  # 6 80 B3
+
+    [-1, DownSample, [512]],  # 7 40 stage4
+    [-1, MCB_4a, [512, 1024]],  # 8 40 B4
+
+    [-1, DownSample, [1024]],  # 9 20 stage5
+    [-1, C3ECA, [1024, 1024]],  # 10 20
+
+    # FPN
+    # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
+    [-1, SPPCSPC, [1024, 512]],  # 11 N5
+    # Head
+    [-1, Conv, [512, 256, 1, 1]],  # 12
+    [-1, Upsample, [None, 2, 'nearest']],  # 13
+    [8, Conv, [1024, 256, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 15
+
+    [-1, MCB_4a, [512, 256]],  # 16 N4
+    [-1, Conv, [256, 128, 1, 1]],  # 17
+    [-1, Upsample, [None, 2, 'nearest']],  # 18
+    [6, Conv, [512, 128, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 20
+
+    [-1, MCB_4a, [256, 128]],  # 21 P3
+
+    [-1, DownSample2, [128]],
+    [[-1, 16], Concat, [1]],
+    [-1, MCB_4a, [512, 256]],  # 24 P4
+
+    [-1, DownSample2, [256]],
+    [[-1, 11], Concat, [1]],
+    [-1, MCB_4a, [1024, 512]],  # 27 P5
+
+    [[21, 24, 27], Detect,
+     [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
+
+    [20, Conv, [256, 128, 3, 1]],  # 29
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [8, 2, 3, 1]],  # 37 Driving area segmentation head
+
+    [20, Conv, [256, 128, 3, 1]],
+    [-1, TransConv_CSP, [128, 128, 2, 2]],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, TransConv_CSP, [32, 32, 2, 2]],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, TransConv_CSP, [8, 8, 2, 2]],
+    [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
+]
+
+PRPNet_MCB4b_ECA_TransCSP = [
+    [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
+    [-1, Conv, [3, 32, 3, 1]],  # 0 640
+    [-1, Conv, [32, 64, 3, 2]],  # 1 320
+    [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
+
+    [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
+    [-1, MCB_4b, [128, 256]],  # 4 160 B2
+
+    [-1, DownSample, [256]],  # 5 80 stage3
+    [-1, MCB_4b, [256, 512]],  # 6 80 B3
+
+    [-1, DownSample, [512]],  # 7 40 stage4
+    [-1, MCB_4b, [512, 1024]],  # 8 40 B4
+
+    [-1, DownSample, [1024]],  # 9 20 stage5
+    [-1, C3ECA, [1024, 1024]],  # 10 20
+
+    # FPN
+    # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
+    [-1, SPPCSPC, [1024, 512]],  # 11 N5
+    # Head
+    [-1, Conv, [512, 256, 1, 1]],  # 12
+    [-1, Upsample, [None, 2, 'nearest']],  # 13
+    [8, Conv, [1024, 256, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 15
+
+    [-1, MCB_4b, [512, 256]],  # 16 N4
+    [-1, Conv, [256, 128, 1, 1]],  # 17
+    [-1, Upsample, [None, 2, 'nearest']],  # 18
+    [6, Conv, [512, 128, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 20
+
+    [-1, MCB_4b, [256, 128]],  # 21 P3
+
+    [-1, DownSample2, [128]],
+    [[-1, 16], Concat, [1]],
+    [-1, MCB_4b, [512, 256]],  # 24 P4
+
+    [-1, DownSample2, [256]],
+    [[-1, 11], Concat, [1]],
+    [-1, MCB_4b, [1024, 512]],  # 27 P5
+
+    [[21, 24, 27], Detect,
+     [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
+
+    [20, Conv, [256, 128, 3, 1]],  # 29
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, Upsample, [None, 2, 'nearest']],
+    [-1, Conv, [8, 2, 3, 1]],  # 37 Driving area segmentation head
+
+    [20, Conv, [256, 128, 3, 1]],
+    [-1, TransConv_CSP, [128, 128, 2, 2]],
+    [-1, BottleneckCSP, [128, 64, 1, False]],
+    [-1, Conv, [64, 32, 3, 1]],
+    [-1, TransConv_CSP, [32, 32, 2, 2]],
+    [-1, Conv, [32, 16, 3, 1]],
+    [-1, BottleneckCSP, [16, 8, 1, False]],
+    [-1, TransConv_CSP, [8, 8, 2, 2]],
+    [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
+]
+
+PRPNet_MCB4b_ECA_Trans = [
+    [28, 37, 46],  # Det_out_idx, Da_Segout_idx, LL_Segout_idx
+    [-1, Conv, [3, 32, 3, 1]],  # 0 640
+    [-1, Conv, [32, 64, 3, 2]],  # 1 320
+    [-1, Conv, [64, 64, 3, 1]],  # 2 320 B1
+
+    [-1, Conv, [64, 128, 3, 2]],  # 3 160 stage2
+    [-1, MCB_4b, [128, 256]],  # 4 160 B2
+
+    [-1, DownSample, [256]],  # 5 80 stage3
+    [-1, MCB_4b, [256, 512]],  # 6 80 B3
+
+    [-1, DownSample, [512]],  # 7 40 stage4
+    [-1, MCB_4b, [512, 1024]],  # 8 40 B4
+
+    [-1, DownSample, [1024]],  # 9 20 stage5
+    [-1, C3ECA, [1024, 1024]],  # 10 20
+
+    # FPN
+    # [ -1, SPP, [1024, 512, [5, 9, 13]]], #11 可以考虑用SPPCSPC试试
+    [-1, SPPCSPC, [1024, 512]],  # 11 N5
+    # Head
+    [-1, Conv, [512, 256, 1, 1]],  # 12
+    [-1, Upsample, [None, 2, 'nearest']],  # 13
+    [8, Conv, [1024, 256, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 15
+
+    [-1, MCB_4b, [512, 256]],  # 16 N4
+    [-1, Conv, [256, 128, 1, 1]],  # 17
+    [-1, Upsample, [None, 2, 'nearest']],  # 18
+    [6, Conv, [512, 128, 1, 1]],
+    [[-1, -2], Concat, [1]],  # 20
+
+    [-1, MCB_4b, [256, 128]],  # 21 P3
+
+    [-1, DownSample2, [128]],
+    [[-1, 16], Concat, [1]],
+    [-1, MCB_4b, [512, 256]],  # 24 P4
+
+    [-1, DownSample2, [256]],
+    [[-1, 11], Concat, [1]],
+    [-1, MCB_4b, [1024, 512]],  # 27 P5
 
     [[21, 24, 27], Detect,
      [1, [[3, 9, 5, 11, 4, 20], [7, 18, 6, 39, 12, 31], [19, 50, 38, 81, 68, 157]], [128, 256, 512]]],  # Detection head 28
@@ -885,6 +951,7 @@ PRPNet_MCB4_ECA = [
     [-1, TransConv, [8, 8, 2, 2]],
     [-1, Conv, [8, 2, 3, 1]]  # 46 Lane line segmentation head
 ]
+
 
 class MCnet(nn.Module):
     def __init__(self, block_cfg, **kwargs):  # block_cfg = YOLOP [ -1, Focus, [3, 32, 3]]
@@ -961,7 +1028,7 @@ class MCnet(nn.Module):
 
 
 def get_net(cfg, **kwargs):
-    m_block_cfg = PRPNet_MCB4  # YOLOPmulti, YOLOPCC3CBAM PRPNet_MCB4_TransCSP
+    m_block_cfg = PRPNet_C3_ECA_TransCSP  # YOLOPmulti, YOLOPCC3CBAM PRPNet_MCB4_TransCSP
     model = MCnet(m_block_cfg, **kwargs)
     return model
 

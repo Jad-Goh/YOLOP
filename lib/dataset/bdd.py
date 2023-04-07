@@ -2,10 +2,10 @@ import numpy as np
 import json
 
 from .AutoDriveDataset import AutoDriveDataset
-from .convert import convert, id_dict, id_dict_single
+from .convert import convert, id_dict, id_dict_single, id_dict_car, id_dict_person
 from tqdm import tqdm
 
-single_cls = True       # just detect vehicle
+single_cls = False       # just detect vehicle
 
 class BddDataset(AutoDriveDataset):
     def __init__(self, cfg, is_train, inputsize, transform=None):
@@ -41,9 +41,9 @@ class BddDataset(AutoDriveDataset):
             gt = np.zeros((len(data), 5))
             for idx, obj in enumerate(data):
                 category = obj['category']
-                if category == "traffic light":
-                    color = obj['attributes']['trafficLightColor']
-                    category = "tl_" + color
+                # if category == "traffic light":
+                #     color = obj['attributes']['trafficLightColor']
+                #     category = "tl_" + color
                 if category in id_dict.keys():
                     x1 = float(obj['box2d']['x1'])
                     y1 = float(obj['box2d']['y1'])
@@ -76,7 +76,8 @@ class BddDataset(AutoDriveDataset):
                     if obj['category'] in id_dict_single.keys():
                         remain.append(obj)
                 else:
-                    remain.append(obj)
+                    if obj['category'] in id_dict.keys():
+                        remain.append(obj)
         return remain
 
     def evaluate(self, cfg, preds, output_dir, *args, **kwargs):
